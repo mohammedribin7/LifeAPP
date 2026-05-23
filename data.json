@@ -1,0 +1,63 @@
+{
+  "goals": [
+    {
+      "current": 3200,
+      "id": 1,
+      "name": "Save $10,000",
+      "target": 10000,
+      "unit": "$"
+    },
+    {
+      "current": 3,
+      "id": 2,
+      "name": "Run a 5K",
+      "target": 5,
+      "unit": "km"
+    },
+    {
+      "current": 4,
+      "id": 3,
+      "name": "Read 12 books",
+      "target": 12,
+      "unit": "books"
+    }
+  ],
+  "habits": [
+    {
+      "done": true,
+      "id": 1,
+      "name": "Morning workout",
+      "streak": 0
+    },
+    {
+      "done": true,
+      "id": 2,
+      "name": "Read 20 mins",
+      "streak": 0
+    },
+    {
+      "done": true,
+      "id": 3,
+      "name": "No sugar",
+      "streak": 0
+    },
+    {
+      "done": true,
+      "id": 4,
+      "name": "Meditate",
+      "streak": 0
+    }
+  ],
+  "last_date": "2026-05-23",
+  "last_full_day": "",
+  "master_streak": 0,
+  "name": "",
+  "sleep": [
+    7
+  ],
+  "spend_log": [],
+  "spend_today": 0,
+  "steps": null,
+  "water": 0,
+  "water_goal": 8
+}
