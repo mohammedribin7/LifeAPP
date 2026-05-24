@@ -32,28 +32,45 @@ def default_data():
         ],
     }
 
-def db_request(method, endpoint, body=None):
+def db_request(method, endpoint, body=None, extra_headers=None):
     url = f"{SUPABASE_URL}/rest/v1/{endpoint}"
     data = json.dumps(body).encode() if body else None
-    req = urllib.request.Request(url, data=data, headers=HEADERS, method=method)
+    headers = {**HEADERS}
+    if extra_headers:
+        headers.update(extra_headers)
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req) as r:
-            return json.loads(r.read().decode())
+            text = r.read().decode()
+            return json.loads(text) if text.strip() else {}
     except urllib.error.HTTPError as e:
-        print(f"DB error {e.code}: {e.read().decode()}")
+        err = e.read().decode()
+        print(f"DB error {e.code}: {err}")
         return None
 
 def load():
     rows = db_request("GET", "userdata?id=eq.main")
     if rows and len(rows) > 0 and rows[0].get("data"):
-        return rows[0]["data"]
-    # No data yet — insert default
+        d = rows[0]["data"]
+        # make sure all keys exist (in case schema changed)
+        default = default_data()
+        for k, v in default.items():
+            if k not in d:
+                d[k] = v
+        return d
+    # Nothing in DB yet — upsert default
     d = default_data()
-    db_request("POST", "userdata", {"id": "main", "data": d})
+    save(d)
     return d
 
 def save(data):
-    db_request("PATCH", "userdata?id=eq.main", {"data": data})
+    # UPSERT — inserts if not exists, updates if exists
+    db_request(
+        "POST",
+        "userdata",
+        {"id": "main", "data": data},
+        extra_headers={"Prefer": "resolution=merge-duplicates"}
+    )
 
 def day_reset(data):
     today = str(date.today())
