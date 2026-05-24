@@ -123,44 +123,6 @@ def get_today_data(settings):
         save_day(t, day)
     return day
 
-@app.route("/")
-def index():
-    return HTML
-
-@app.route("/api/data")
-def api_data():
-    settings = load_settings()
-    day = get_today_data(settings)
-    return jsonify({"settings": settings, "day": day, "today": today()})
-
-@app.route("/api/save_day", methods=["POST"])
-def api_save_day():
-    body = request.json
-    save_day(body["date"], body["data"])
-    return jsonify({"ok": True})
-
-@app.route("/api/save_settings", methods=["POST"])
-def api_save_settings():
-    save_settings(request.json)
-    return jsonify({"ok": True})
-
-@app.route("/api/history")
-def api_history():
-    return jsonify(load_history(60))
-
-@app.route("/api/reset", methods=["POST"])
-def api_reset():
-    s = default_settings()
-    save_settings(s)
-    d = default_day(s)
-    save_day(today(), d)
-    return jsonify({"settings": s, "day": d, "today": today()})
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    print(f"\n✅  Life Dashboard running! http://localhost:{port}\n")
-    app.run(debug=False, host="0.0.0.0", port=port)
-
 HTML = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -581,3 +543,41 @@ fetchData();
 </script>
 </body>
 </html>"""
+
+@app.route("/")
+def index():
+    return HTML
+
+@app.route("/api/data")
+def api_data():
+    settings = load_settings()
+    day = get_today_data(settings)
+    return jsonify({"settings": settings, "day": day, "today": today()})
+
+@app.route("/api/save_day", methods=["POST"])
+def api_save_day():
+    body = request.json
+    save_day(body["date"], body["data"])
+    return jsonify({"ok": True})
+
+@app.route("/api/save_settings", methods=["POST"])
+def api_save_settings():
+    save_settings(request.json)
+    return jsonify({"ok": True})
+
+@app.route("/api/history")
+def api_history():
+    return jsonify(load_history(60))
+
+@app.route("/api/reset", methods=["POST"])
+def api_reset():
+    s = default_settings()
+    save_settings(s)
+    d = default_day(s)
+    save_day(today(), d)
+    return jsonify({"settings": s, "day": d, "today": today()})
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    print(f"\n✅  Life Dashboard running! http://localhost:{port}\n")
+    app.run(debug=False, host="0.0.0.0", port=port)
