@@ -1,9 +1,17 @@
 from flask import Flask, request, jsonify
-import json, os
+import json, os, urllib.request, urllib.error
 from datetime import date
 
 app = Flask(__name__)
-DATA_FILE = os.path.join(os.path.dirname(__file__), "data.json")
+
+SUPABASE_URL = "https://qoezyiesnuxedjaclvfn.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvZXp5aWVzbnV4ZWRqYWNsdmZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MDkxODQsImV4cCI6MjA5NTE4NTE4NH0.qQMCBG2WSW3LoyUCaKc3KGL4GUOkwbsawy-Epkmio30"
+HEADERS = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+    "Prefer": "return=representation"
+}
 
 def default_data():
     return {
@@ -24,27 +32,43 @@ def default_data():
         ],
     }
 
+def db_request(method, endpoint, body=None):
+    url = f"{SUPABASE_URL}/rest/v1/{endpoint}"
+    data = json.dumps(body).encode() if body else None
+    req = urllib.request.Request(url, data=data, headers=HEADERS, method=method)
+    try:
+        with urllib.request.urlopen(req) as r:
+            return json.loads(r.read().decode())
+    except urllib.error.HTTPError as e:
+        print(f"DB error {e.code}: {e.read().decode()}")
+        return None
+
 def load():
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE) as f: return json.load(f)
-        except: pass
-    d = default_data(); save(d); return d
+    rows = db_request("GET", "userdata?id=eq.main")
+    if rows and len(rows) > 0 and rows[0].get("data"):
+        return rows[0]["data"]
+    # No data yet — insert default
+    d = default_data()
+    db_request("POST", "userdata", {"id": "main", "data": d})
+    return d
 
 def save(data):
-    with open(DATA_FILE, "w") as f: json.dump(data, f, indent=2)
+    db_request("PATCH", "userdata?id=eq.main", {"data": data})
 
 def day_reset(data):
     today = str(date.today())
-    if data.get("last_date") == today: return data
+    if data.get("last_date") == today:
+        return data
     all_done = all(h["done"] for h in data["habits"])
     data["master_streak"] = (data.get("master_streak", 0) + 1) if all_done else 0
-    if all_done: data["last_full_day"] = data.get("last_date", "")
+    if all_done:
+        data["last_full_day"] = data.get("last_date", "")
     for h in data["habits"]:
         h["streak"] = (h.get("streak", 0) + 1) if h["done"] else 0
         h["done"] = False
     data.update({"water": 0, "steps": None, "spend_today": 0.0, "last_date": today})
-    save(data); return data
+    save(data)
+    return data
 
 HTML = r"""<!DOCTYPE html>
 <html lang="en">
@@ -70,32 +94,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .section-lbl{font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin:0 4px 8px}
 .card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-
-/* Quick card base */
 .qc{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:13px;transition:background .3s,border-color .3s}
 .qc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .qc-lbl{font-size:12px;color:var(--text2);display:flex;align-items:center;gap:4px}
 .qc-val{font-size:26px;font-weight:700;color:var(--text);line-height:1;transition:color .3s}
 .qc-unit{font-size:11px;color:var(--text3);margin-top:2px;transition:color .3s}
-
-/* Card colour states */
 .qc.state-green{background:var(--green-bg);border-color:var(--green)}
-.qc.state-green .qc-val{color:var(--green-text)}
-.qc.state-green .qc-unit{color:var(--green-text)}
+.qc.state-green .qc-val{color:var(--green-text)}.qc.state-green .qc-unit{color:var(--green-text)}
 .qc.state-bright-green{background:var(--bright-green-bg);border-color:var(--bright-green)}
-.qc.state-bright-green .qc-val{color:#007a30}
-.qc.state-bright-green .qc-unit{color:#007a30}
+.qc.state-bright-green .qc-val{color:#007a30}.qc.state-bright-green .qc-unit{color:#007a30}
 .qc.state-orange{background:var(--orange-bg);border-color:var(--orange)}
-.qc.state-orange .qc-val{color:var(--orange-text)}
-.qc.state-orange .qc-unit{color:var(--orange-text)}
-
-/* Counter button */
+.qc.state-orange .qc-val{color:var(--orange-text)}.qc.state-orange .qc-unit{color:var(--orange-text)}
 .counter-row{display:flex;align-items:center;gap:8px;margin-top:6px}
 .cnt-btn{width:32px;height:32px;border-radius:50%;border:1.5px solid var(--border2);background:var(--bg);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text2);flex-shrink:0;transition:all .15s;line-height:1}
 .cnt-btn:active{transform:scale(.88);opacity:.7}
 .cnt-val{flex:1;text-align:center;font-size:26px;font-weight:700;color:var(--text);transition:color .3s}
 .cnt-unit{font-size:11px;color:var(--text3);text-align:center;margin-top:2px}
-
 .log-btn{background:var(--bg);border:0.5px solid var(--border2);border-radius:6px;padding:4px 8px;font-size:11px;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:3px;font-family:inherit}
 .log-btn:active{opacity:.7;transform:scale(.95)}
 .bar{height:5px;background:var(--bg);border-radius:3px;margin-top:8px;overflow:hidden}
@@ -137,6 +151,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#1a1a18;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}.toast.show{opacity:1}
 .streak-card{text-align:center;padding:24px}.streak-big{font-size:56px;font-weight:700;color:#EF9F27;line-height:1}
 .streak-desc{font-size:13px;color:var(--text2);margin-top:8px;line-height:1.5}
+.loading{display:flex;align-items:center;justify-content:center;height:200px;color:var(--text3);font-size:14px;gap:8px}
 </style>
 </head>
 <body>
@@ -151,25 +166,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div style="height:8px"></div>
     <div class="section-lbl">quick log</div>
     <div class="grid2">
-
-      <!-- WATER counter card -->
       <div class="qc" id="qc-water">
         <div class="qc-top">
           <span class="qc-lbl"><i class="ti ti-droplet" style="font-size:13px"></i> Water</span>
           <span style="font-size:10px;color:var(--text3)" id="water-status">0/8</span>
         </div>
         <div class="counter-row">
-          <button class="cnt-btn" onclick="adjustWater(-1)" aria-label="minus">−</button>
-          <div>
-            <div class="cnt-val" id="q-water">0</div>
-            <div class="cnt-unit">glasses</div>
-          </div>
-          <button class="cnt-btn" onclick="adjustWater(1)" aria-label="plus">+</button>
+          <button class="cnt-btn" onclick="adjustWater(-1)">−</button>
+          <div><div class="cnt-val" id="q-water">0</div><div class="cnt-unit">glasses</div></div>
+          <button class="cnt-btn" onclick="adjustWater(1)">+</button>
         </div>
         <div class="bar" style="margin-top:10px"><div class="bar-fill" id="water-bar" style="width:0%"></div></div>
       </div>
-
-      <!-- SLEEP card -->
       <div class="qc" id="qc-sleep">
         <div class="qc-top">
           <span class="qc-lbl"><i class="ti ti-moon" style="font-size:13px"></i> Sleep</span>
@@ -178,8 +186,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="qc-val" id="q-sleep">—</div>
         <div class="qc-unit" id="q-sleep-unit">hrs last night</div>
       </div>
-
-      <!-- STEPS card -->
       <div class="qc" id="qc-steps">
         <div class="qc-top">
           <span class="qc-lbl"><i class="ti ti-run" style="font-size:13px"></i> Steps</span>
@@ -188,8 +194,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="qc-val" id="q-steps">—</div>
         <div class="qc-unit" id="q-steps-unit">steps today</div>
       </div>
-
-      <!-- SPEND card -->
       <div class="qc" id="qc-spend">
         <div class="qc-top">
           <span class="qc-lbl"><i class="ti ti-coin" style="font-size:13px"></i> Spent</span>
@@ -198,14 +202,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="qc-val" id="q-spend">$0</div>
         <div class="qc-unit">today</div>
       </div>
-
     </div>
     <div class="section-lbl">today's habits</div>
-    <div class="card" id="home-habits"></div>
+    <div class="card" id="home-habits"><div class="loading"><i class="ti ti-loader-2"></i> Loading...</div></div>
     <div class="section-lbl">goals</div>
-    <div class="card" id="home-goals"></div>
+    <div class="card" id="home-goals"><div class="loading"><i class="ti ti-loader-2"></i> Loading...</div></div>
   </div>
-
   <div id="tab-health" class="tab">
     <div style="height:8px"></div>
     <div class="section-lbl">this week</div>
@@ -218,7 +220,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="section-lbl">sleep history</div>
     <div class="card" id="h-sleeplog"></div>
   </div>
-
   <div id="tab-money" class="tab">
     <div style="height:8px"></div>
     <div class="stat-grid">
@@ -228,7 +229,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="section-lbl">expense log</div>
     <div class="card"><div id="m-log"></div><button class="add-btn" onclick="openSheet('spend')"><i class="ti ti-plus" style="font-size:14px"></i> add expense</button></div>
   </div>
-
   <div id="tab-goals" class="tab">
     <div style="height:8px"></div>
     <div class="section-lbl">my goals</div>
@@ -239,7 +239,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="card" id="g-habits"></div>
     <button class="add-btn" onclick="openSheet('addHabit')"><i class="ti ti-plus" style="font-size:14px"></i> add habit</button>
   </div>
-
   <div id="tab-you" class="tab">
     <div style="height:8px"></div>
     <div class="section-lbl">your streak</div>
@@ -259,7 +258,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
   </div>
 </div>
-
 <nav class="nav">
   <button class="nb active" onclick="switchTab('home',this)"><i class="ti ti-home"></i><span>Home</span></button>
   <button class="nb" onclick="switchTab('health',this)"><i class="ti ti-heart"></i><span>Health</span></button>
@@ -271,81 +269,65 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="sheet"><div class="sheet-handle"></div><div id="sheetContent"></div></div>
 </div>
 <div class="toast" id="toast"></div>
-
 <script>
 let S={},sheetType='',sheetId=null;
-
-async function fetchData(){const r=await fetch('/api/data');S=await r.json();renderAll();}
-async function persist(){await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(S)});}
+async function fetchData(){
+  try{
+    const r=await fetch('/api/data');
+    S=await r.json();
+    renderAll();
+  } catch(e){
+    document.getElementById('home-habits').innerHTML='<div class="empty">Could not load data. Please refresh.</div>';
+  }
+}
+async function persist(){
+  try{
+    await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(S)});
+  } catch(e){ console.error('Save failed',e); }
+}
 function today(){return new Date().toISOString().slice(0,10);}
-
-// ── Water counter ──────────────────────────────────────────────
 function adjustWater(delta){
-  S.water = Math.max(0, Math.min(30, (S.water||0) + delta));
-  persist(); updateWaterCard();
+  S.water=Math.max(0,Math.min(30,(S.water||0)+delta));
+  persist();updateWaterCard();
 }
 function updateWaterCard(){
-  const w = S.water||0, goal = S.water_goal||8;
-  document.getElementById('q-water').textContent = w;
-  document.getElementById('water-status').textContent = w+'/'+goal;
-  const pct = Math.min(w/goal*100,100);
-  const bar = document.getElementById('water-bar');
-  const card = document.getElementById('qc-water');
+  const w=S.water||0,goal=S.water_goal||8;
+  document.getElementById('q-water').textContent=w;
+  document.getElementById('water-status').textContent=w+'/'+goal;
+  const pct=Math.min(w/goal*100,100);
+  const bar=document.getElementById('water-bar');
+  const card=document.getElementById('qc-water');
   card.classList.remove('state-green','state-bright-green','state-orange');
-  if(w >= goal){
-    card.classList.add('state-green');
-    bar.style.background='var(--green)';
-  } else {
-    bar.style.background='var(--blue)';
-  }
-  bar.style.width = pct+'%';
+  if(w>=goal){card.classList.add('state-green');bar.style.background='var(--green)';}
+  else{bar.style.background='var(--blue)';}
+  bar.style.width=pct+'%';
 }
-
-// ── Sleep card colour ──────────────────────────────────────────
 function updateSleepCard(){
-  const sl = S.sleep||[];
-  const card = document.getElementById('qc-sleep');
-  const valEl = document.getElementById('q-sleep');
-  const unitEl = document.getElementById('q-sleep-unit');
+  const sl=S.sleep||[];
+  const card=document.getElementById('qc-sleep');
+  const valEl=document.getElementById('q-sleep');
+  const unitEl=document.getElementById('q-sleep-unit');
   card.classList.remove('state-green','state-bright-green','state-orange');
-  if(!sl.length){ valEl.textContent='—'; unitEl.textContent='hrs last night'; return; }
-  const v = parseFloat(sl[sl.length-1]);
-  valEl.textContent = v.toFixed(1);
-  if(v >= 7){
-    card.classList.add('state-green');
-    unitEl.textContent = '✓ great sleep!';
-  } else if(v >= 5){
-    unitEl.textContent = 'hrs — could be more';
-  } else {
-    card.classList.add('state-orange');
-    unitEl.textContent = 'hrs — rest up!';
-  }
+  if(!sl.length){valEl.textContent='—';unitEl.textContent='hrs last night';return;}
+  const v=parseFloat(sl[sl.length-1]);
+  valEl.textContent=v.toFixed(1);
+  if(v>=7){card.classList.add('state-green');unitEl.textContent='✓ great sleep!';}
+  else if(v>=5){unitEl.textContent='hrs — could be more';}
+  else{card.classList.add('state-orange');unitEl.textContent='hrs — rest up!';}
 }
-
-// ── Steps card colour ─────────────────────────────────────────
 function updateStepsCard(){
-  const card = document.getElementById('qc-steps');
-  const valEl = document.getElementById('q-steps');
-  const unitEl = document.getElementById('q-steps-unit');
+  const card=document.getElementById('qc-steps');
+  const valEl=document.getElementById('q-steps');
+  const unitEl=document.getElementById('q-steps-unit');
   card.classList.remove('state-green','state-bright-green','state-orange');
-  if(S.steps == null){ valEl.textContent='—'; unitEl.textContent='steps today'; return; }
-  const v = S.steps;
-  valEl.textContent = Number(v).toLocaleString();
-  if(v >= 10000){
-    card.classList.add('state-bright-green');
-    unitEl.textContent = '🔥 amazing!';
-  } else if(v >= 7000){
-    card.classList.add('state-green');
-    unitEl.textContent = '✓ great job!';
-  } else if(v >= 1000){
-    card.classList.add('state-orange');
-    unitEl.textContent = 'steps — keep going!';
-  } else {
-    unitEl.textContent = 'steps today';
-  }
+  if(S.steps==null){valEl.textContent='—';unitEl.textContent='steps today';return;}
+  const v=S.steps;
+  valEl.textContent=Number(v).toLocaleString();
+  if(v>=10000){card.classList.add('state-bright-green');unitEl.textContent='🔥 amazing!';}
+  else if(v>=7000){card.classList.add('state-green');unitEl.textContent='✓ great job!';}
+  else if(v>=1000){card.classList.add('state-orange');unitEl.textContent='steps — keep going!';}
+  else{unitEl.textContent='steps today';}
 }
-
-// ── Main render ───────────────────────────────────────────────
 function renderAll(){
   const h=new Date().getHours(),name=S.name?', '+S.name:'';
   document.getElementById('greetTxt').textContent=(h<12?'Good morning':h<17?'Good afternoon':'Good evening')+name;
@@ -354,22 +336,16 @@ function renderAll(){
   document.getElementById('s-streakBig').textContent=S.master_streak||0;
   document.getElementById('s-name').textContent=S.name||'Tap to set';
   document.getElementById('s-waterGoal').textContent=(S.water_goal||8)+' glasses';
-  renderHome(); renderHealth(); renderMoney(); renderGoalsPage();
+  renderHome();renderHealth();renderMoney();renderGoalsPage();
 }
-
 function renderHome(){
-  updateWaterCard();
-  updateSleepCard();
-  updateStepsCard();
+  updateWaterCard();updateSleepCard();updateStepsCard();
   document.getElementById('q-spend').textContent='$'+Math.round(S.spend_today||0);
-
   const habits=S.habits||[];
   document.getElementById('home-habits').innerHTML=habits.length?habits.map(h=>`<div class="habit-row"><button class="hcheck${h.done?' done':''}" onclick="toggleHabit(${h.id})">${h.done?'<i class="ti ti-check" style="font-size:14px"></i>':''}</button><span class="hname">${h.name}</span><span class="hstreak${h.streak>=3?' hot':''}"><i class="ti ti-flame" style="font-size:12px"></i> ${h.streak}d</span></div>`).join(''):'<div class="empty">No habits yet — add some in Goals tab</div>';
-
   const goals=S.goals||[];
   document.getElementById('home-goals').innerHTML=goals.length?goals.map(g=>{const pct=Math.min(Math.round(g.current/g.target*100),100),col=pct>=80?'var(--green)':pct>=40?'var(--blue)':'var(--amber)';return`<div class="goal-row"><div class="goal-top"><span class="goal-name">${g.name}</span><span class="goal-pct">${pct}%</span></div><div class="goal-sub">${g.current}/${g.target} ${g.unit}</div><div class="bar"><div class="bar-fill" style="width:${pct}%;background:${col}"></div></div></div>`;}).join(''):'<div class="empty">No goals yet</div>';
 }
-
 function renderHealth(){
   const sl=S.sleep||[],week=sl.slice(-7);
   document.getElementById('h-sleep').textContent=week.length?(week.reduce((a,b)=>a+parseFloat(b),0)/week.length).toFixed(1):'—';
@@ -378,10 +354,9 @@ function renderHealth(){
   const done=(S.habits||[]).filter(h=>h.done).length;
   document.getElementById('h-habits').textContent=done+'/'+(S.habits||[]).length;
   const logEl=document.getElementById('h-sleeplog');
-  if(!sl.length){logEl.innerHTML='<div class="empty">Log sleep from home to see history</div>';return;}
-  logEl.innerHTML=sl.slice(-10).reverse().map((v,i)=>{const d=new Date();d.setDate(d.getDate()-i);const q=v>=7?'<span class="badge badge-green">Good</span>':v>=5?'<span class="badge badge-amber">Fair</span>':'<span class="badge badge-red">Poor</span>';return`<div class="log-row"><div class="log-desc">${d.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}</div>${q}<span class="log-amt">${parseFloat(v).toFixed(1)} hrs</span></div>`;}).join('');
+  if(!(S.sleep||[]).length){logEl.innerHTML='<div class="empty">Log sleep from home to see history</div>';return;}
+  logEl.innerHTML=S.sleep.slice(-10).reverse().map((v,i)=>{const d=new Date();d.setDate(d.getDate()-i);const q=v>=7?'<span class="badge badge-green">Good</span>':v>=5?'<span class="badge badge-amber">Fair</span>':'<span class="badge badge-red">Poor</span>';return`<div class="log-row"><div class="log-desc">${d.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}</div>${q}<span class="log-amt">${parseFloat(v).toFixed(1)} hrs</span></div>`;}).join('');
 }
-
 function renderMoney(){
   document.getElementById('m-today').textContent='$'+Math.round(S.spend_today||0);
   const logs=S.spend_log||[],now=Date.now(),weekAmt=logs.filter(e=>(now-new Date(e.date).getTime())<7*86400000).reduce((a,e)=>a+e.amt,0);
@@ -389,18 +364,15 @@ function renderMoney(){
   const logEl=document.getElementById('m-log');
   logEl.innerHTML=logs.length?logs.slice(-20).reverse().map(e=>`<div class="log-row"><div><div class="log-desc">${e.desc}</div><div class="log-sub">${e.cat} · ${e.date}</div></div><span class="log-amt">$${parseFloat(e.amt).toFixed(2)}</span></div>`).join(''):'<div class="empty">No expenses yet</div>';
 }
-
 function renderGoalsPage(){
   const goals=S.goals||[];
   document.getElementById('g-goals').innerHTML=goals.length?goals.map(g=>{const pct=Math.min(Math.round(g.current/g.target*100),100),col=pct>=80?'var(--green)':pct>=40?'var(--blue)':'var(--amber)';return`<div class="goal-row"><div class="goal-top"><span class="goal-name">${g.name}</span><div class="goal-actions"><span class="goal-pct">${pct}%</span><button class="log-btn" onclick="openSheet('updateGoal',${g.id})"><i class="ti ti-pencil" style="font-size:11px"></i> update</button><button class="log-btn" onclick="deleteGoal(${g.id})" style="color:var(--red)"><i class="ti ti-trash" style="font-size:11px"></i></button></div></div><div class="goal-sub">${g.current}/${g.target} ${g.unit}</div><div class="bar"><div class="bar-fill" style="width:${pct}%;background:${col}"></div></div></div>`;}).join(''):'<div class="empty">No goals yet!</div>';
   const habits=S.habits||[];
   document.getElementById('g-habits').innerHTML=habits.length?habits.map(h=>`<div class="habit-row"><button class="hcheck${h.done?' done':''}" onclick="toggleHabit(${h.id})">${h.done?'<i class="ti ti-check" style="font-size:14px"></i>':''}</button><span class="hname">${h.name}</span><div style="display:flex;align-items:center;gap:8px"><span class="hstreak${h.streak>=3?' hot':''}"><i class="ti ti-flame" style="font-size:12px"></i> ${h.streak}d</span><button class="log-btn" onclick="deleteHabit(${h.id})" style="color:var(--red)"><i class="ti ti-trash" style="font-size:11px"></i></button></div></div>`).join(''):'<div class="empty">No habits yet</div>';
 }
-
 function toggleHabit(id){const h=S.habits.find(h=>h.id===id);if(h){h.done=!h.done;persist();renderAll();}}
 function deleteGoal(id){S.goals=S.goals.filter(g=>g.id!==id);persist();renderAll();}
 function deleteHabit(id){S.habits=S.habits.filter(h=>h.id!==id);persist();renderAll();}
-
 function openSheet(type,id=null){
   sheetType=type;sheetId=id;
   const c=document.getElementById('sheetContent');
@@ -415,7 +387,6 @@ function openSheet(type,id=null){
   document.getElementById('overlay').classList.add('open');
   setTimeout(()=>{const f=document.querySelector('#sheetContent input,#sheetContent select');if(f)f.focus();},200);
 }
-
 function doSave(){
   const t=sheetType;
   if(t==='sleep'){const v=parseFloat(document.getElementById('si').value);if(!isNaN(v)&&v>0){if(!S.sleep)S.sleep=[];S.sleep.push(Math.round(v*10)/10);toast('Sleep logged!');}}
@@ -428,13 +399,11 @@ function doSave(){
   else if(t==='waterGoal'){const v=parseInt(document.getElementById('wg').value);if(!isNaN(v)&&v>0)S.water_goal=v;toast('Goal updated!');}
   persist();renderAll();closeSheet();
 }
-
 function closeSheet(){document.getElementById('overlay').classList.remove('open');}
 function overlayClick(e){if(e.target===document.getElementById('overlay'))closeSheet();}
 async function doReset(){if(!confirm('Reset ALL data?'))return;const r=await fetch('/api/reset',{method:'POST'});S=await r.json();renderAll();toast('Reset!');}
 function switchTab(name,btn){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));document.getElementById('tab-'+name).classList.add('active');btn.classList.add('active');document.getElementById('bodyEl').scrollTop=0;}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
-
 fetchData();
 </script>
 </body>
@@ -456,7 +425,9 @@ def api_save():
 
 @app.route("/api/reset", methods=["POST"])
 def api_reset():
-    d = default_data(); save(d); return jsonify(d)
+    d = default_data()
+    save(d)
+    return jsonify(d)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
