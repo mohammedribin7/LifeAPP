@@ -454,7 +454,7 @@ async function loadHistory(){
     return`<div class="hday-card" onclick="openDayDetail('${d.date}')">
       <div class="hday-top">
         <div><div class="hday-date">${isToday?'Today':label}</div><div class="hday-sub">${doneCnt}/${totalCnt} habits · ${d.sleep?d.sleep+'hrs sleep':'no sleep logged'}</div></div>
-        <span class="bdg ${allDone?'bg':'ba'}">${allDone?'✓ Perfect':'In progress'}</span>
+        <span class="bdg ${allDone?'bg':'ba'}">${allDone?'✓ Perfect':'You can do better Rik'}</span>
       </div>
       <div class="hday-pills">
         ${d.water?`<span class="hpill${d.water>=(S.water_goal||8)?' good':''}">${d.water} glasses</span>`:''}
