@@ -1,6 +1,9 @@
 from flask import Flask, request, jsonify
 import json, os, urllib.request, urllib.error
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
+from zoneinfo import ZoneInfo
+
+MELBOURNE = ZoneInfo('Australia/Melbourne')
 
 app = Flask(__name__)
 
@@ -27,7 +30,7 @@ def db(method, endpoint, body=None, extra=None):
         return None
 
 def today():
-    return str(date.today())
+    return datetime.now(MELBOURNE).strftime('%Y-%m-%d')
 
 def default_settings():
     return {
