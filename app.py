@@ -38,6 +38,9 @@ def default_settings():
         "water_goal": 8,
         "master_streak": 0,
         "last_full_day": "",
+        "salary": 3801.28,
+        "month_spent": 0.0,
+        "month_key": "",
         "habits": [
             {"id": 1, "name": "Morning workout", "streak": 0},
             {"id": 2, "name": "Read 20 mins",    "streak": 0},
@@ -59,8 +62,11 @@ def default_day(settings):
         "steps": None,
         "spend_today": 0.0,
         "spend_log": [],
-        "habits_done": [],  # list of habit ids completed
+        "habits_done": [],
     }
+
+def current_month():
+    return datetime.now(MELBOURNE).strftime('%Y-%m')
 
 # ── Settings (name, goals, habits, streaks) ──────────────────
 def load_settings():
@@ -268,9 +274,40 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <!-- MONEY -->
   <div id="tab-money" class="tab">
     <div style="height:8px"></div>
+    <!-- Salary balance card -->
+    <div class="card" id="salary-card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px">Monthly Balance</div>
+          <div style="font-size:32px;font-weight:700;color:var(--text)" id="m-balance">$3,801.28</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px" id="m-balance-sub">remaining this month</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--text3)">spent</div>
+          <div style="font-size:20px;font-weight:600;color:var(--text)" id="m-spent-total">$0</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">of <span id="m-salary-lbl">$3,801.28</span></div>
+        </div>
+      </div>
+      <!-- Big balance bar -->
+      <div style="height:12px;background:var(--bg);border-radius:6px;overflow:hidden;margin-bottom:6px">
+        <div id="m-balance-bar" style="height:100%;border-radius:6px;transition:width .5s ease,background .4s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3)">
+        <span>$0</span><span id="m-salary-end">$3,801.28</span>
+      </div>
+    </div>
+    <!-- Motivational popup (hidden by default) -->
+    <div id="motiv-popup" style="display:none;background:var(--surface);border:1.5px solid var(--green);border-radius:var(--r);padding:16px;margin-bottom:12px;position:relative">
+      <div style="font-size:13px;font-weight:600;color:var(--green-text);margin-bottom:6px">💭 Before you spend...</div>
+      <div style="font-size:14px;color:var(--text);line-height:1.5" id="motiv-text"></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button onclick="confirmSpend()" style="flex:1;padding:10px;border-radius:10px;background:var(--green);border:none;color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Yes, log it</button>
+        <button onclick="cancelSpend()" style="flex:1;padding:10px;border-radius:10px;background:var(--bg);border:0.5px solid var(--border2);color:var(--text2);font-size:14px;cursor:pointer;font-family:inherit">Cancel</button>
+      </div>
+    </div>
     <div class="sgrid">
       <div class="sbox"><div class="sval" id="m-today">$0</div><div class="slb">spent today</div></div>
-      <div class="sbox"><div class="sval" id="m-week">$0</div><div class="slb">this week</div></div>
+      <div class="sbox"><div class="sval" id="m-days-left">—</div><div class="slb">days left in month</div></div>
     </div>
     <div class="slbl">today's expenses</div>
     <div class="card"><div id="m-log"></div><button class="addbtn" onclick="openSheet('spend')"><i class="ti ti-plus" style="font-size:14px"></i> add expense</button></div>
@@ -301,6 +338,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="card">
       <div class="srow" onclick="openSheet('rename')"><div><div class="sl">Your name</div><div class="ss" id="s-name">Tap to set</div></div><i class="ti ti-chevron-right" style="font-size:16px;color:var(--text3)"></i></div>
       <div class="srow" onclick="openSheet('waterGoal')"><div><div class="sl">Daily water goal</div><div class="ss" id="s-waterGoal">8 glasses</div></div><i class="ti ti-chevron-right" style="font-size:16px;color:var(--text3)"></i></div>
+      <div class="srow" onclick="openSheet('salary')"><div><div class="sl">Monthly salary</div><div class="ss" id="s-salaryLbl">$3,801.28</div></div><i class="ti ti-chevron-right" style="font-size:16px;color:var(--text3)"></i></div>
     </div>
     <div class="slbl" style="margin-top:16px">data</div>
     <div class="card">
@@ -387,6 +425,7 @@ function renderAll(){
   document.getElementById('s-streakBig').textContent=S.master_streak||0;
   document.getElementById('s-name').textContent=S.name||'Tap to set';
   document.getElementById('s-waterGoal').textContent=(S.water_goal||8)+' glasses';
+  if(document.getElementById('s-salaryLbl')) document.getElementById('s-salaryLbl').textContent='$'+(S.salary||3801.28).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2});
   renderHome(); renderMoney(); renderGoalsPage();
 }
 
@@ -454,7 +493,7 @@ async function loadHistory(){
     return`<div class="hday-card" onclick="openDayDetail('${d.date}')">
       <div class="hday-top">
         <div><div class="hday-date">${isToday?'Today':label}</div><div class="hday-sub">${doneCnt}/${totalCnt} habits · ${d.sleep?d.sleep+'hrs sleep':'no sleep logged'}</div></div>
-        <span class="bdg ${allDone?'bg':'ba'}">${allDone?'✓ Perfect':'You can do better Rik'}</span>
+        <span class="bdg ${allDone?'bg':'ba'}">${allDone?'✓ Perfect':'In progress'}</span>
       </div>
       <div class="hday-pills">
         ${d.water?`<span class="hpill${d.water>=(S.water_goal||8)?' good':''}">${d.water} glasses</span>`:''}
@@ -511,12 +550,13 @@ function openSheet(type,id=null){
   const c=document.getElementById('sheetContent');
   if(type==='sleep'){c.innerHTML=`<div class="stitle">Log sleep</div><div class="field"><label>Hours slept last night</label><input type="number" id="si" min="0" max="24" step="0.5" value="${D.sleep||7}"></div><button class="pbtn" onclick="doSave()">Save</button>`;}
   else if(type==='steps'){c.innerHTML=`<div class="stitle">Log steps</div><div class="field"><label>Steps today</label><input type="number" id="si" min="0" step="100" value="${D.steps||0}"></div><button class="pbtn" onclick="doSave()">Save</button>`;}
-  else if(type==='spend'){c.innerHTML=`<div class="stitle">Add expense</div><div class="field"><label>Amount ($)</label><input type="number" id="sa" min="0" step="0.5" value="0"></div><div class="field"><label>Description</label><input type="text" id="sd" placeholder="Coffee, groceries..."></div><div class="field"><label>Category</label><select id="sc"><option>Food & drink</option><option>Transport</option><option>Shopping</option><option>Health</option><option>Entertainment</option><option>Other</option></select></div><button class="pbtn" onclick="doSave()">Save</button>`;}
+  else if(type==='spend'){c.innerHTML=`<div class="stitle">Add expense</div><div class="field"><label>Amount ($)</label><input type="number" id="sa" min="0" step="0.5" value="0"></div><div class="field"><label>Description</label><input type="text" id="sd" placeholder="Coffee, groceries..."></div><div class="field"><label>Category</label><select id="sc"><option>Food & drink</option><option>Transport</option><option>Shopping</option><option>Health</option><option>Entertainment</option><option>Other</option></select></div><button class="pbtn" onclick="showMotivPopup()">Next →</button>`;}
   else if(type==='addGoal'){c.innerHTML=`<div class="stitle">Add goal</div><div class="field"><label>Goal name</label><input type="text" id="gn" placeholder="Save $5,000..."></div><div class="field"><label>Current progress</label><input type="number" id="gc" min="0" value="0"></div><div class="field"><label>Target</label><input type="number" id="gt" min="1" value="100"></div><div class="field"><label>Unit ($, km, books...)</label><input type="text" id="gu" placeholder="books"></div><button class="pbtn" onclick="doSave()">Add goal</button>`;}
   else if(type==='updateGoal'){const g=S.goals.find(g=>g.id===id);c.innerHTML=`<div class="stitle">Update: ${g.name}</div><div class="field"><label>Current progress</label><input type="number" id="gu2" min="0" value="${g.current}"></div><div class="field"><label>New target</label><input type="number" id="gt2" min="1" value="${g.target}"></div><button class="pbtn" onclick="doSave()">Save</button><button class="dbtn" onclick="deleteGoal(${id});closeSheet()">Delete this goal</button>`;}
   else if(type==='addHabit'){c.innerHTML=`<div class="stitle">Add habit</div><div class="field"><label>Habit name</label><input type="text" id="hn" placeholder="Morning run, Meditate..."></div><button class="pbtn" onclick="doSave()">Add habit</button>`;}
   else if(type==='rename'){c.innerHTML=`<div class="stitle">Your name</div><div class="field"><label>What should I call you?</label><input type="text" id="rn" value="${S.name||''}" placeholder="Your name"></div><button class="pbtn" onclick="doSave()">Save</button>`;}
   else if(type==='waterGoal'){c.innerHTML=`<div class="stitle">Daily water goal</div><div class="field"><label>Glasses per day</label><input type="number" id="wg" min="1" max="20" value="${S.water_goal||8}"></div><button class="pbtn" onclick="doSave()">Save</button>`;}
+  else if(type==='salary'){c.innerHTML=`<div class="stitle">Monthly salary</div><div class="field"><label>Your monthly salary ($)</label><input type="number" id="slr" min="0" step="0.01" value="${S.salary||3801.28}"></div><div class="field"><label>Reset monthly spending to $0?</label><select id="slr-reset"><option value="no">No, keep current</option><option value="yes">Yes, reset to $0</option></select></div><button class="pbtn" onclick="doSave()">Save</button>`;}
   document.getElementById('overlay').classList.add('open');
   setTimeout(()=>{const f=document.querySelector('#sheetContent input,#sheetContent select');if(f)f.focus();},200);
 }
@@ -525,12 +565,13 @@ function doSave(){
   const t=sheetType;
   if(t==='sleep'){const v=parseFloat(document.getElementById('si').value);if(!isNaN(v)&&v>0){D.sleep=Math.round(v*10)/10;toast('Sleep logged!');}}
   else if(t==='steps'){const v=parseInt(document.getElementById('si').value);if(!isNaN(v))D.steps=Math.max(0,v);toast('Steps logged!');}
-  else if(t==='spend'){const a=parseFloat(document.getElementById('sa').value),desc=document.getElementById('sd').value||'Expense',cat=document.getElementById('sc').value;if(!isNaN(a)&&a>0){D.spend_today=Math.round((D.spend_today+a)*100)/100;if(!D.spend_log)D.spend_log=[];D.spend_log.push({amt:a,desc,cat});toast('Expense added!');}}
+  else if(t==='spend'){const a=parseFloat(pendingSpend.amt),desc=pendingSpend.desc||'Expense',cat=pendingSpend.cat;if(!isNaN(a)&&a>0){D.spend_today=Math.round((D.spend_today+a)*100)/100;if(!D.spend_log)D.spend_log=[];D.spend_log.push({amt:a,desc,cat});S.month_spent=Math.round(((S.month_spent||0)+a)*100)/100;persistSettings();toast('Expense logged!');}}
   else if(t==='addGoal'){const n=document.getElementById('gn').value.trim(),c=parseFloat(document.getElementById('gc').value)||0,tg=parseFloat(document.getElementById('gt').value)||100,u=document.getElementById('gu').value.trim()||'';if(n){if(!S.goals)S.goals=[];S.goals.push({id:Date.now(),name:n,current:c,target:tg,unit:u});toast('Goal added!');}}
   else if(t==='updateGoal'){const g=S.goals.find(g=>g.id===sheetId);if(g){g.current=parseFloat(document.getElementById('gu2').value)||0;g.target=parseFloat(document.getElementById('gt2').value)||g.target;toast('Goal updated!');}}
   else if(t==='addHabit'){const n=document.getElementById('hn').value.trim();if(n){if(!S.habits)S.habits=[];S.habits.push({id:Date.now(),name:n,streak:0});toast('Habit added!');}}
   else if(t==='rename'){S.name=document.getElementById('rn').value.trim();persistSettings();toast('Saved!');}
   else if(t==='waterGoal'){const v=parseInt(document.getElementById('wg').value);if(!isNaN(v)&&v>0){S.water_goal=v;persistSettings();}toast('Updated!');}
+  else if(t==='salary'){const v=parseFloat(document.getElementById('slr').value);const rst=document.getElementById('slr-reset').value;if(!isNaN(v)&&v>0){S.salary=Math.round(v*100)/100;if(rst==='yes')S.month_spent=0;persistSettings();}toast('Salary updated!');}
   if(['sleep','steps','spend'].includes(t))persistDay();
   if(['addGoal','updateGoal','addHabit'].includes(t))persistSettings();
   renderAll(); closeSheet();
@@ -541,6 +582,48 @@ function overlayClick(e){if(e.target===document.getElementById('overlay'))closeS
 async function doReset(){if(!confirm('Reset ALL data?'))return;const r=await fetch('/api/reset',{method:'POST'});const j=await r.json();S=j.settings;D=j.day;TODAY=j.today;renderAll();toast('Reset!');}
 function switchTab(name,btn){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));document.getElementById('tab-'+name).classList.add('active');btn.classList.add('active');document.getElementById('bodyEl').scrollTop=0;}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
+
+
+// ── Motivational popup ────────────────────────────────────────
+const motivMessages = [
+  "Will this bring you closer to your goals, or further away?",
+  "You're building wealth one decision at a time. Is this one worth it?",
+  "Picture your bank account in 6 months — does this purchase help get you there?",
+  "Rich people ask: do I need this, or do I just want it right now?",
+  "Every dollar saved is a dollar working for your future. Think twice!",
+  "Is this an investment in yourself, or just a moment of pleasure?",
+  "Your future self is watching this decision. Make them proud!",
+  "Small sacrifices today = big freedom tomorrow. Still want to spend?",
+];
+
+let pendingSpend = {};
+
+function showMotivPopup(){
+  const a = parseFloat(document.getElementById('sa').value);
+  const desc = document.getElementById('sd').value || 'Expense';
+  const cat = document.getElementById('sc').value;
+  if(isNaN(a) || a <= 0){ toast('Enter a valid amount!'); return; }
+  pendingSpend = {amt: a, desc, cat};
+  closeSheet();
+  const msg = motivMessages[Math.floor(Math.random()*motivMessages.length)];
+  document.getElementById('motiv-text').textContent = msg;
+  document.getElementById('motiv-popup').style.display = 'block';
+  // Switch to money tab if not already there
+  switchTab('money', document.querySelector('.nb:nth-child(3)'));
+  document.getElementById('bodyEl').scrollTo({top:0, behavior:'smooth'});
+}
+
+function confirmSpend(){
+  document.getElementById('motiv-popup').style.display = 'none';
+  sheetType = 'spend';
+  doSave();
+}
+
+function cancelSpend(){
+  document.getElementById('motiv-popup').style.display = 'none';
+  pendingSpend = {};
+  toast('Spend cancelled 💪');
+}
 
 fetchData();
 </script>
