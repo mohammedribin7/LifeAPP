@@ -448,14 +448,42 @@ function renderHome(){
 }
 
 function renderMoney(){
-  document.getElementById('m-today').textContent='$'+Math.round(D.spend_today||0);
-  const logs=D.spend_log||[],now=Date.now(),week=(D.spend_log||[]).reduce((a,e)=>a+e.amt,0);
-  document.getElementById('m-week').textContent='$'+Math.round(week);
-  const logEl=document.getElementById('m-log');
-  logEl.innerHTML=logs.length?logs.slice().reverse().map(e=>`<div class="lrow">
+  const salary = S.salary || 3801.28;
+  const monthSpent = S.month_spent || 0;
+  const remaining = Math.max(0, salary - monthSpent);
+  const pct = Math.max(0, Math.min(100, (remaining / salary) * 100));
+
+  // Colour: rich green fading → orange → red → bright red
+  let barColor;
+  if(remaining > 1000){
+    const fade = (salary - remaining) / (salary - 1000);
+    barColor = `hsl(155, ${65 - fade*20}%, ${35 + fade*8}%)`;
+  } else if(remaining > 500){ barColor = '#D4620A'; }
+  else if(remaining > 100){ barColor = '#C0392B'; }
+  else { barColor = '#FF0000'; }
+
+  document.getElementById('m-balance').textContent = '$' + remaining.toLocaleString('en-AU', {minimumFractionDigits:2, maximumFractionDigits:2});
+  document.getElementById('m-balance').style.color = remaining<=100?'#FF0000':remaining<=500?'#C0392B':remaining<=1000?'var(--orange)':'var(--text)';
+  document.getElementById('m-balance-sub').textContent = remaining<=100?'⚠️ Almost empty!':remaining<=500?'Getting low...':remaining<=1000?'Spend carefully':'Looking good!';
+  document.getElementById('m-spent-total').textContent = '$' + monthSpent.toLocaleString('en-AU', {minimumFractionDigits:2, maximumFractionDigits:2});
+  document.getElementById('m-salary-lbl').textContent = '$' + salary.toLocaleString('en-AU', {minimumFractionDigits:2, maximumFractionDigits:2});
+  document.getElementById('m-salary-end').textContent = '$' + salary.toLocaleString('en-AU', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  const bar = document.getElementById('m-balance-bar');
+  bar.style.width = pct + '%';
+  bar.style.background = barColor;
+
+  const now2 = new Date();
+  const lastDay = new Date(now2.getFullYear(), now2.getMonth()+1, 0).getDate();
+  document.getElementById('m-days-left').textContent = (lastDay - now2.getDate()) + ' days';
+  document.getElementById('m-today').textContent = '$' + (D.spend_today||0).toFixed(2);
+
+  const logs = D.spend_log || [];
+  const logEl = document.getElementById('m-log');
+  logEl.innerHTML = logs.length ? logs.slice().reverse().map(e=>`<div class="lrow">
     <div><div class="ldesc">${e.desc}</div><div class="lsub">${e.cat}</div></div>
     <span class="lamt">$${parseFloat(e.amt).toFixed(2)}</span>
-  </div>`).join(''):'<div class="empty">No expenses yet</div>';
+  </div>`).join('') : '<div class="empty">No expenses today</div>';
 }
 
 function renderGoalsPage(){
