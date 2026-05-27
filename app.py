@@ -480,10 +480,31 @@ function renderMoney(){
 
   const logs = D.spend_log || [];
   const logEl = document.getElementById('m-log');
-  logEl.innerHTML = logs.length ? logs.slice().reverse().map(e=>`<div class="lrow">
-    <div><div class="ldesc">${e.desc}</div><div class="lsub">${e.cat}</div></div>
-    <span class="lamt">$${parseFloat(e.amt).toFixed(2)}</span>
-  </div>`).join('') : '<div class="empty">No expenses today</div>';
+  logEl.innerHTML = logs.length ? logs.slice().reverse().map((e,ri)=>{
+    const i = logs.length - 1 - ri; // real index
+    return `<div class="lrow">
+      <div><div class="ldesc">${e.desc}</div><div class="lsub">${e.cat}</div></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="lamt">$${parseFloat(e.amt).toFixed(2)}</span>
+        <button onclick="deleteExpense(${i})" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:16px;padding:2px 4px;line-height:1" title="Delete">×</button>
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty">No expenses today</div>';
+}
+
+function deleteExpense(idx){
+  if(!D.spend_log || idx < 0 || idx >= D.spend_log.length) return;
+  const removed = D.spend_log[idx];
+  D.spend_log.splice(idx, 1);
+  // Recalculate today's spend
+  D.spend_today = D.spend_log.reduce((a,e)=>a+e.amt, 0);
+  D.spend_today = Math.round(D.spend_today * 100) / 100;
+  // Recalculate month_spent from scratch by subtracting removed amount
+  S.month_spent = Math.max(0, Math.round(((S.month_spent||0) - removed.amt) * 100) / 100);
+  persistDay();
+  persistSettings();
+  renderAll();
+  toast('Expense removed');
 }
 
 function renderGoalsPage(){
@@ -593,7 +614,7 @@ function doSave(){
   const t=sheetType;
   if(t==='sleep'){const v=parseFloat(document.getElementById('si').value);if(!isNaN(v)&&v>0){D.sleep=Math.round(v*10)/10;toast('Sleep logged!');}}
   else if(t==='steps'){const v=parseInt(document.getElementById('si').value);if(!isNaN(v))D.steps=Math.max(0,v);toast('Steps logged!');}
-  else if(t==='spend'){const a=parseFloat(pendingSpend.amt),desc=pendingSpend.desc||'Expense',cat=pendingSpend.cat;if(!isNaN(a)&&a>0){D.spend_today=Math.round((D.spend_today+a)*100)/100;if(!D.spend_log)D.spend_log=[];D.spend_log.push({amt:a,desc,cat});S.month_spent=Math.round(((S.month_spent||0)+a)*100)/100;persistSettings();toast('Expense logged!');}}
+  else if(t==='spend'){const a=parseFloat(pendingSpend.amt),desc=pendingSpend.desc||'Expense',cat=pendingSpend.cat;if(!isNaN(a)&&a>0){if(!D.spend_log)D.spend_log=[];D.spend_log.push({amt:a,desc,cat});D.spend_today=D.spend_log.reduce((s,e)=>s+e.amt,0);D.spend_today=Math.round(D.spend_today*100)/100;S.month_spent=Math.round(((S.month_spent||0)+a)*100)/100;persistDay();persistSettings();toast('Expense logged!');renderAll();}}
   else if(t==='addGoal'){const n=document.getElementById('gn').value.trim(),c=parseFloat(document.getElementById('gc').value)||0,tg=parseFloat(document.getElementById('gt').value)||100,u=document.getElementById('gu').value.trim()||'';if(n){if(!S.goals)S.goals=[];S.goals.push({id:Date.now(),name:n,current:c,target:tg,unit:u});toast('Goal added!');}}
   else if(t==='updateGoal'){const g=S.goals.find(g=>g.id===sheetId);if(g){g.current=parseFloat(document.getElementById('gu2').value)||0;g.target=parseFloat(document.getElementById('gt2').value)||g.target;toast('Goal updated!');}}
   else if(t==='addHabit'){const n=document.getElementById('hn').value.trim();if(n){if(!S.habits)S.habits=[];S.habits.push({id:Date.now(),name:n,streak:0});toast('Habit added!');}}
