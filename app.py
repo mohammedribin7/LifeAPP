@@ -458,11 +458,11 @@ function renderMoney(){
   if(remaining > 2500){
       const fade = (salary - remaining) / (salary - 2500);
       barColor = `hsl(155, ${65 - fade*20}%, ${35 + fade*8}%)`;
-  } else if(remaining > 2000){ barColor = '#F1C40F'; }  // yellow
-  } else if(remaining > 1500){ barColor = '#E67E22'; }  // light orange
-  } else if(remaining > 500){  barColor = '#D4620A'; }  // dark orange
-  } else if(remaining > 100){  barColor = '#C0392B'; }  // red
-  } else {                     barColor = '#FF0000'; }  // bright red danger
+  } else if(remaining > 2000){ barColor = '#F1C40F'; }
+  else if(remaining > 1500){ barColor = '#E67E22'; }
+  else if(remaining > 500){  barColor = '#D4620A'; }
+  else if(remaining > 100){  barColor = '#C0392B'; }
+  else {                     barColor = '#FF0000'; }
 
   document.getElementById('m-balance').textContent = '$' + remaining.toLocaleString('en-AU', {minimumFractionDigits:2, maximumFractionDigits:2});
   document.getElementById('m-balance').style.color = remaining<=100?'#FF0000':remaining<=500?'#C0392B':remaining<=1000?'var(--orange)':'var(--text)';
